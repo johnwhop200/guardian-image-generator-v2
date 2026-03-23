@@ -1,5 +1,5 @@
 const express = require('express');
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
@@ -139,20 +139,32 @@ let browser = null;
 
 async function getBrowser() {
   if (!browser || !browser.isConnected()) {
+    const execPath = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium';
+    console.log('Launching Chromium from:', execPath);
     browser = await puppeteer.launch({
-      headless: 'new',
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+      headless: true,
+      executablePath: execPath,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
-        '--single-process'
+        '--no-zygote',
+        '--disable-extensions',
+        '--disable-background-networking',
+        '--disable-default-apps',
+        '--disable-translate'
       ]
     });
+    console.log('Chromium launched successfully');
   }
   return browser;
 }
+
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({ service: 'guardian-image-generator-v2', status: 'running', version: '2.0.1' });
+});
 
 // Health check
 app.get('/health', (req, res) => {
@@ -263,8 +275,11 @@ app.post('/generate-base64', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Guardian Image Generator V2 running on port ${PORT}`);
+}).on('error', (err) => {
+  console.error('Server failed to start:', err);
+  process.exit(1);
 });
 
 // Graceful shutdown
