@@ -49,53 +49,27 @@ function generateHTML(imageUrl, title, filters) {
     height: ${SIZE}px;
     position: relative;
     overflow: hidden;
-    background: #2a1a0a;
+    background: #1a1000;
   }
 
-  /* Background image — fills entire frame */
+  /* Background image with Canva Mustard duotone via SVG filter */
   .bg-image {
     position: absolute;
     top: 0; left: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
-    filter: saturate(${f.saturate}) contrast(${f.contrast}) brightness(${f.brightness}) sepia(${f.sepia}) hue-rotate(${f.hueRotate}deg);
+    filter: url(#mustard-duotone);
   }
 
-  /* Golden duotone overlay — warm yellow dominant */
-  .duotone-overlay {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(
-      135deg,
-      rgba(${f.overlayR}, ${f.overlayG}, ${f.overlayB}, ${f.overlayA}) 0%,
-      rgba(${Math.round((f.overlayR+f.overlay2R)/2)}, ${Math.round((f.overlayG+f.overlay2G)/2)}, ${Math.round((f.overlayB+f.overlay2B)/2)}, ${((f.overlayA+f.overlay2A)/2).toFixed(2)}) 50%,
-      rgba(${f.overlay2R}, ${f.overlay2G}, ${f.overlay2B}, ${f.overlay2A}) 100%
-    );
-    mix-blend-mode: multiply;
-  }
-
-  /* Screen overlay for warmth */
-  .color-boost {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(${f.boostR}, ${f.boostG}, ${f.boostB}, ${f.boostA});
-    mix-blend-mode: screen;
-  }
-
-  /* Title banner — semi-transparent navy with subtle border */
+  /* Title banner — blue 42% transparency (client spec) */
   .title-banner {
     position: absolute;
     left: 40px;
     right: 40px;
     top: 50%;
     transform: translateY(-40%);
-    background: rgba(26, 43, 80, 0.72);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(26, 43, 94, 0.42);
     padding: 45px 55px;
     display: flex;
     align-items: center;
@@ -114,21 +88,32 @@ function generateHTML(imageUrl, title, filters) {
     max-width: 900px;
   }
 
-  /* Logo — bottom right corner */
+  /* Logo — bottom right, larger */
   .logo {
     position: absolute;
-    bottom: 30px;
-    right: 30px;
-    width: 160px;
-    height: 64px;
+    bottom: 25px;
+    right: 25px;
+    width: 200px;
+    height: 80px;
   }
 </style>
 </head>
 <body>
+  <!-- SVG Duotone filter: Canva "Moutarde" / Mustard -->
+  <!-- Shadow: #2b1700 | Highlight: #e8a735 -->
+  <svg style="position:absolute;width:0;height:0;">
+    <filter id="mustard-duotone">
+      <feColorMatrix type="saturate" values="0" />
+      <feComponentTransfer>
+        <feFuncR type="table" tableValues="0.169 0.910" />
+        <feFuncG type="table" tableValues="0.090 0.655" />
+        <feFuncB type="table" tableValues="0.000 0.210" />
+      </feComponentTransfer>
+    </filter>
+  </svg>
+
   <div class="container">
     <img class="bg-image" src="${imageUrl}" crossorigin="anonymous" />
-    <div class="duotone-overlay"></div>
-    <div class="color-boost"></div>
     <div class="title-banner">
       <div class="title-text">${title}</div>
     </div>
