@@ -161,9 +161,66 @@ async function getBrowser() {
   return browser;
 }
 
-// Root endpoint
+// Test UI
 app.get('/', (req, res) => {
-  res.json({ service: 'guardian-image-generator-v2', status: 'running', version: '2.0.1' });
+  res.send(`<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>Guardian Image Generator V2 — Test</title>
+<style>
+  body { background:#1a1a1a; color:#fff; font-family:Arial,sans-serif; margin:30px; }
+  h1 { font-size:20px; margin-bottom:20px; }
+  label { display:block; font-size:13px; color:#aaa; margin:10px 0 4px; }
+  input[type=text] { width:100%; max-width:700px; padding:10px; background:#222; color:#fff; border:1px solid #444; font-size:14px; }
+  button { padding:12px 30px; background:#1a2b5e; color:#fff; border:none; font-size:15px; cursor:pointer; margin-top:15px; }
+  button:hover { background:#2a3b7e; }
+  button:disabled { opacity:0.5; cursor:wait; }
+  #result { margin-top:25px; }
+  #result img { max-width:600px; border:2px solid #333; }
+  #status { color:#888; font-size:13px; margin-top:10px; }
+  .download { display:inline-block; margin-top:10px; padding:8px 20px; background:#2a5a2a; color:#fff; text-decoration:none; font-size:13px; }
+</style>
+</head><body>
+<h1>Guardian Image Generator V2 — Test</h1>
+<label>Image URL</label>
+<input type="text" id="imageUrl" placeholder="https://example.com/photo.jpg" />
+<label>Title</label>
+<input type="text" id="title" placeholder="BREAKING NEWS TITLE HERE" />
+<br>
+<button onclick="generate()">Generate</button>
+<div id="status"></div>
+<div id="result"></div>
+<script>
+async function generate() {
+  const url = document.getElementById('imageUrl').value;
+  const title = document.getElementById('title').value;
+  if (!url || !title) return alert('Fill both fields');
+  const btn = document.querySelector('button');
+  btn.disabled = true;
+  document.getElementById('status').textContent = 'Generating...';
+  document.getElementById('result').innerHTML = '';
+  try {
+    const r = await fetch('/generate-base64', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({imageUrl: url, title: title})
+    });
+    const data = await r.json();
+    if (data.success) {
+      document.getElementById('result').innerHTML =
+        '<img src="' + data.image + '" /><br>' +
+        '<a class="download" href="' + data.image + '" download="guardian-image.png">Download PNG</a>';
+      document.getElementById('status').textContent = 'Done!';
+    } else {
+      document.getElementById('status').textContent = 'Error: ' + (data.error || 'Unknown');
+    }
+  } catch(e) {
+    document.getElementById('status').textContent = 'Error: ' + e.message;
+  }
+  btn.disabled = false;
+}
+</script>
+</body></html>`);
 });
 
 // Health check
