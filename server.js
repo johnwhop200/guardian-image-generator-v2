@@ -18,9 +18,10 @@ const LOGO_SVG = `
 const logoDataUri = `data:image/svg+xml;base64,${Buffer.from(LOGO_SVG).toString('base64')}`;
 
 // Default filter values — Canva "Moutarde" duotone approximation
+// No grayscale! sepia + saturate boost preserves color depth
 const DEFAULTS = {
-  grayscale: 100, sepia: 100, saturate: 250, hueRotate: 5,
-  brightness: 90, contrast: 110,
+  grayscale: 0, sepia: 80, saturate: 200, hueRotate: -5,
+  brightness: 95, contrast: 110,
   bannerAlpha: 0.42,
   logoWidth: 200, logoHeight: 80, logoBottom: 25, logoRight: 25
 };
@@ -181,7 +182,7 @@ app.get('/', (req, res) => {
     <h2>Filtre Canva Moutarde</h2>
     <div class="row"><label>Grayscale %</label><input type="range" id="grayscale" min="0" max="100" step="5" value="${d.grayscale}"><span class="v" id="grayscale-v">${d.grayscale}</span></div>
     <div class="row"><label>Sepia %</label><input type="range" id="sepia" min="0" max="100" step="5" value="${d.sepia}"><span class="v" id="sepia-v">${d.sepia}</span></div>
-    <div class="row"><label>Saturate %</label><input type="range" id="saturate" min="50" max="500" step="10" value="${d.saturate}"><span class="v" id="saturate-v">${d.saturate}</span></div>
+    <div class="row"><label>Saturate %</label><input type="range" id="saturate" min="50" max="400" step="10" value="${d.saturate}"><span class="v" id="saturate-v">${d.saturate}</span></div>
     <div class="row"><label>Hue Rotate</label><input type="range" id="hueRotate" min="-30" max="30" step="1" value="${d.hueRotate}"><span class="v" id="hueRotate-v">${d.hueRotate}</span></div>
     <div class="row"><label>Brightness %</label><input type="range" id="brightness" min="50" max="130" step="5" value="${d.brightness}"><span class="v" id="brightness-v">${d.brightness}</span></div>
     <div class="row"><label>Contrast %</label><input type="range" id="contrast" min="50" max="200" step="5" value="${d.contrast}"><span class="v" id="contrast-v">${d.contrast}</span></div>
