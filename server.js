@@ -17,11 +17,10 @@ const LOGO_SVG = `
 
 const logoDataUri = `data:image/svg+xml;base64,${Buffer.from(LOGO_SVG).toString('base64')}`;
 
-// Canva "Moutarde" = Gradient Map (shadows #2c2f4a → highlights #f2c14e)
-// Implemented as: desaturate + gradient overlay in soft-light mode
+// ChatGPT exact values for Canva "Moutarde" duotone
 const DEFAULTS = {
-  desaturate: 40, contrast: 140, brightness: 90,
-  gradientOpacity: 70, grain: 12,
+  grayscale: 0.4, contrast: 1.35, brightness: 0.85, saturate: 0.7,
+  duotoneOpacity: 0.85, blendMode: 'color',
   bannerAlpha: 0.42,
   logoWidth: 200, logoHeight: 80, logoBottom: 25, logoRight: 25
 };
@@ -53,42 +52,31 @@ function generateHTML(imageUrl, title, filters) {
     background: #1a1000;
   }
 
-  /* Base image: desaturate + contrast boost */
+  /* Base image: partial desaturate + contrast + brightness */
   .bg-image {
     position: absolute;
     top: 0; left: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
-    filter: saturate(${(100 - f.desaturate) / 100}) contrast(${f.contrast / 100}) brightness(${f.brightness / 100});
+    filter: grayscale(${f.grayscale}) contrast(${f.contrast}) brightness(${f.brightness}) saturate(${f.saturate});
   }
 
-  /* Gradient Map: shadows #2c2f4a (blue/violet) → highlights #f2c14e (yellow) */
-  .gradient-map {
+  /* Duotone gradient map: yellow highlights → violet → blue shadows */
+  .duotone {
     position: absolute;
     top: 0; left: 0;
     width: 100%;
     height: 100%;
     background: linear-gradient(
-      180deg,
+      to bottom,
       #f2c14e 0%,
-      #c49a30 35%,
-      #5a4a3a 65%,
+      #cfa23a 35%,
+      #5b4b8a 65%,
       #2c2f4a 100%
     );
-    mix-blend-mode: overlay;
-    opacity: ${f.gradientOpacity / 100};
-  }
-
-  /* Subtle grain texture */
-  .grain {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%;
-    height: 100%;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
-    opacity: ${f.grain / 100};
-    mix-blend-mode: overlay;
+    mix-blend-mode: ${f.blendMode};
+    opacity: ${f.duotoneOpacity};
   }
 
   /* Title banner — blue, 42% transparency */
@@ -130,8 +118,7 @@ function generateHTML(imageUrl, title, filters) {
 <body>
   <div class="container">
     <img class="bg-image" src="${imageUrl}" crossorigin="anonymous" />
-    <div class="gradient-map"></div>
-    <div class="grain"></div>
+    <div class="duotone"></div>
     <div class="title-banner">
       <div class="title-text">${title}</div>
     </div>
@@ -210,13 +197,19 @@ app.get('/', (req, res) => {
 <div class="main">
   <div class="controls">
     <h2>Image</h2>
-    <div class="row"><label>Desaturation %</label><input type="range" id="desaturate" min="0" max="80" step="5" value="${d.desaturate}"><span class="v" id="desaturate-v">${d.desaturate}</span></div>
-    <div class="row"><label>Contrast %</label><input type="range" id="contrast" min="80" max="200" step="5" value="${d.contrast}"><span class="v" id="contrast-v">${d.contrast}</span></div>
-    <div class="row"><label>Brightness %</label><input type="range" id="brightness" min="60" max="120" step="5" value="${d.brightness}"><span class="v" id="brightness-v">${d.brightness}</span></div>
+    <div class="row"><label>Grayscale</label><input type="range" id="grayscale" min="0" max="1" step="0.05" value="${d.grayscale}"><span class="v" id="grayscale-v">${d.grayscale}</span></div>
+    <div class="row"><label>Contrast</label><input type="range" id="contrast" min="0.5" max="2" step="0.05" value="${d.contrast}"><span class="v" id="contrast-v">${d.contrast}</span></div>
+    <div class="row"><label>Brightness</label><input type="range" id="brightness" min="0.5" max="1.3" step="0.05" value="${d.brightness}"><span class="v" id="brightness-v">${d.brightness}</span></div>
+    <div class="row"><label>Saturate</label><input type="range" id="saturate" min="0" max="1.5" step="0.05" value="${d.saturate}"><span class="v" id="saturate-v">${d.saturate}</span></div>
 
-    <h2>Gradient Map (jaune→bleu)</h2>
-    <div class="row"><label>Opacite %</label><input type="range" id="gradientOpacity" min="20" max="100" step="5" value="${d.gradientOpacity}"><span class="v" id="gradientOpacity-v">${d.gradientOpacity}</span></div>
-    <div class="row"><label>Grain %</label><input type="range" id="grain" min="0" max="30" step="2" value="${d.grain}"><span class="v" id="grain-v">${d.grain}</span></div>
+    <h2>Duotone (jaune→violet→bleu)</h2>
+    <div class="row"><label>Opacite</label><input type="range" id="duotoneOpacity" min="0.2" max="1" step="0.05" value="${d.duotoneOpacity}"><span class="v" id="duotoneOpacity-v">${d.duotoneOpacity}</span></div>
+    <div class="row"><label>Blend</label><select id="blendMode" style="flex:1;background:#222;color:#fff;padding:4px">
+      <option value="color" selected>color</option>
+      <option value="soft-light">soft-light</option>
+      <option value="overlay">overlay</option>
+      <option value="multiply">multiply</option>
+    </select><span class="v" id="blendMode-v">${d.blendMode}</span></div>
 
     <h2>Banniere</h2>
     <div class="row"><label>Transparence</label><input type="range" id="bannerAlpha" min="0.1" max="0.9" step="0.02" value="${d.bannerAlpha}"><span class="v" id="bannerAlpha-v">${d.bannerAlpha}</span></div>
@@ -237,7 +230,7 @@ app.get('/', (req, res) => {
   </div>
 </div>
 <script>
-const sliders=['desaturate','contrast','brightness','gradientOpacity','grain','bannerAlpha','logoWidth','logoHeight','logoBottom','logoRight'];
+const sliders=['grayscale','contrast','brightness','saturate','duotoneOpacity','bannerAlpha','logoWidth','logoHeight','logoBottom','logoRight'];
 sliders.forEach(id=>{
   document.getElementById(id).addEventListener('input',function(){
     document.getElementById(id+'-v').textContent=this.value;
@@ -247,8 +240,12 @@ sliders.forEach(id=>{
 function getFilters(){
   const f={};
   sliders.forEach(id=>{f[id]=parseFloat(document.getElementById(id).value)});
+  f.blendMode=document.getElementById('blendMode').value;
   return f;
 }
+document.getElementById('blendMode').addEventListener('change',function(){
+  document.getElementById('blendMode-v').textContent=this.value;
+});
 
 function copyJSON(){
   const j=JSON.stringify(getFilters(),null,2);
