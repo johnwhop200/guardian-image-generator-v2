@@ -19,8 +19,8 @@ const logoDataUri = `data:image/svg+xml;base64,${Buffer.from(LOGO_SVG).toString(
 
 // ChatGPT exact values for Canva "Moutarde" duotone
 const DEFAULTS = {
-  grayscale: 0.4, contrast: 1.35, brightness: 0.85, saturate: 0.7,
-  duotoneOpacity: 0.85, blendMode: 'color',
+  grayscale: 0.4, contrast: 1.25, brightness: 0.92, saturate: 0.8,
+  duotoneOpacity: 0.75, blendMode: 'soft-light',
   bannerAlpha: 0.42,
   logoWidth: 200, logoHeight: 80, logoBottom: 25, logoRight: 25
 };
@@ -49,7 +49,7 @@ function generateHTML(imageUrl, title, filters) {
     height: ${SIZE}px;
     position: relative;
     overflow: hidden;
-    background: #1a1000;
+    background: #0f1117;
   }
 
   /* Base image: partial desaturate + contrast + brightness */
@@ -70,9 +70,9 @@ function generateHTML(imageUrl, title, filters) {
     height: 100%;
     background: linear-gradient(
       to bottom,
-      #f2c14e 0%,
-      #cfa23a 35%,
-      #5b4b8a 65%,
+      #f4c542 0%,
+      #e0b03a 30%,
+      #6b5ca5 65%,
       #2c2f4a 100%
     );
     mix-blend-mode: ${f.blendMode};
@@ -205,8 +205,8 @@ app.get('/', (req, res) => {
     <h2>Duotone (jaune→violet→bleu)</h2>
     <div class="row"><label>Opacite</label><input type="range" id="duotoneOpacity" min="0.2" max="1" step="0.05" value="${d.duotoneOpacity}"><span class="v" id="duotoneOpacity-v">${d.duotoneOpacity}</span></div>
     <div class="row"><label>Blend</label><select id="blendMode" style="flex:1;background:#222;color:#fff;padding:4px">
-      <option value="color" selected>color</option>
-      <option value="soft-light">soft-light</option>
+      <option value="color">color</option>
+      <option value="soft-light" selected>soft-light</option>
       <option value="overlay">overlay</option>
       <option value="multiply">multiply</option>
     </select><span class="v" id="blendMode-v">${d.blendMode}</span></div>
