@@ -2,7 +2,7 @@ const express = require('express');
 const puppeteer = require('puppeteer-core');
 
 const app = express();
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '30mb' }));
 
 const PORT = process.env.PORT || 3000;
 
@@ -175,8 +175,10 @@ app.get('/', (req, res) => {
   body{background:#1a1a1a;color:#fff;font-family:Arial,sans-serif;margin:20px;font-size:13px}
   h1{font-size:18px;margin-bottom:15px}
   h2{font-size:13px;color:#e8c840;margin:15px 0 8px;border-bottom:1px solid #333;padding-bottom:4px}
-  .top{display:flex;gap:15px;margin-bottom:10px}
-  .top input{flex:1;padding:8px;background:#222;color:#fff;border:1px solid #444}
+  .top{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;align-items:center}
+  .top input[type=text]{flex:1;min-width:200px;padding:8px;background:#222;color:#fff;border:1px solid #444}
+  .top input[type=file]{font-size:12px}
+  .or{color:#666;font-size:11px}
   button{padding:10px 25px;background:#1a2b5e;color:#fff;border:none;cursor:pointer;font-size:14px}
   button:hover{background:#2a3b7e}
   button:disabled{opacity:0.5}
@@ -196,7 +198,9 @@ app.get('/', (req, res) => {
 </head><body>
 <h1>Guardian Image Generator V2 — Test & Calibration</h1>
 <div class="top">
-  <input type="text" id="imageUrl" placeholder="Image URL (direct link to .jpg/.png)" />
+  <input type="file" id="fileInput" accept="image/*" />
+  <span class="or">ou</span>
+  <input type="text" id="imageUrl" placeholder="Image URL" />
   <input type="text" id="title" placeholder="TITLE TEXT" style="max-width:300px" />
   <button onclick="generate()">Generate</button>
 </div>
@@ -278,10 +282,19 @@ function copyJSON(){
   navigator.clipboard.writeText(j).catch(()=>{});
 }
 
+let uploadedDataUri=null;
+document.getElementById('fileInput').addEventListener('change',function(e){
+  const file=e.target.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(ev){uploadedDataUri=ev.target.result;document.getElementById('imageUrl').value='[uploaded: '+file.name+']'};
+  reader.readAsDataURL(file);
+});
+
 async function generate(){
-  const url=document.getElementById('imageUrl').value;
+  const url=uploadedDataUri||document.getElementById('imageUrl').value;
   const title=document.getElementById('title').value;
-  if(!url||!title)return alert('Fill image URL and title');
+  if(!url||!title)return alert('Upload an image or paste URL, and enter a title');
   document.querySelector('button').disabled=true;
   document.getElementById('status').textContent='Generating (~5s)...';
   document.getElementById('resultImg').innerHTML='';
