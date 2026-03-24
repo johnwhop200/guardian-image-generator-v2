@@ -294,7 +294,8 @@ document.getElementById('fileInput').addEventListener('change',function(e){
 async function generate(){
   const url=uploadedDataUri||document.getElementById('imageUrl').value;
   const title=document.getElementById('title').value;
-  if(!url||!title)return alert('Upload an image or paste URL, and enter a title');
+  if(!url)return alert('Choisir une image (upload ou URL)');
+  if(!title)return alert('Entrer un titre');
   document.querySelector('button').disabled=true;
   document.getElementById('status').textContent='Generating (~5s)...';
   document.getElementById('resultImg').innerHTML='';
