@@ -17,12 +17,12 @@ const LOGO_SVG = `
 
 const logoDataUri = `data:image/svg+xml;base64,${Buffer.from(LOGO_SVG).toString('base64')}`;
 
-// Default filter values
+// Default filter values — Canva "Moutarde" duotone approximation
 const DEFAULTS = {
-  saturate: 0.4, contrast: 1.05, brightness: 0.9, sepia: 0.3, hueRotate: 0,
-  overlayR: 160, overlayG: 100, overlayB: 20, overlayA: 0.70,
-  overlay2R: 210, overlay2G: 180, overlay2B: 50, overlay2A: 0.55,
-  boostR: 200, boostG: 160, boostB: 40, boostA: 0.25
+  grayscale: 100, sepia: 100, saturate: 250, hueRotate: 5,
+  brightness: 90, contrast: 110,
+  bannerAlpha: 0.42,
+  logoWidth: 200, logoHeight: 80, logoBottom: 25, logoRight: 25
 };
 
 function generateHTML(imageUrl, title, filters) {
@@ -52,24 +52,24 @@ function generateHTML(imageUrl, title, filters) {
     background: #1a1000;
   }
 
-  /* Background image with Canva Mustard duotone via SVG filter */
+  /* Canva Mustard Duotone = grayscale + sepia + saturate boost */
   .bg-image {
     position: absolute;
     top: 0; left: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
-    filter: url(#mustard-duotone);
+    filter: grayscale(${f.grayscale}%) sepia(${f.sepia}%) saturate(${f.saturate}%) hue-rotate(${f.hueRotate}deg) brightness(${f.brightness}%) contrast(${f.contrast}%);
   }
 
-  /* Title banner — blue 42% transparency (client spec) */
+  /* Title banner — blue, 42% transparency */
   .title-banner {
     position: absolute;
     left: 40px;
     right: 40px;
     top: 50%;
     transform: translateY(-40%);
-    background: rgba(26, 43, 94, 0.42);
+    background: rgba(26, 43, 94, ${f.bannerAlpha});
     padding: 45px 55px;
     display: flex;
     align-items: center;
@@ -88,30 +88,17 @@ function generateHTML(imageUrl, title, filters) {
     max-width: 900px;
   }
 
-  /* Logo — bottom right, larger */
+  /* Logo — bottom right */
   .logo {
     position: absolute;
-    bottom: 25px;
-    right: 25px;
-    width: 200px;
-    height: 80px;
+    bottom: ${f.logoBottom}px;
+    right: ${f.logoRight}px;
+    width: ${f.logoWidth}px;
+    height: ${f.logoHeight}px;
   }
 </style>
 </head>
 <body>
-  <!-- SVG Duotone filter: Canva "Moutarde" / Mustard -->
-  <!-- Shadow: #2b1700 | Highlight: #e8a735 -->
-  <svg style="position:absolute;width:0;height:0;">
-    <filter id="mustard-duotone">
-      <feColorMatrix type="saturate" values="0" />
-      <feComponentTransfer>
-        <feFuncR type="table" tableValues="0.169 0.910" />
-        <feFuncG type="table" tableValues="0.090 0.655" />
-        <feFuncB type="table" tableValues="0.000 0.210" />
-      </feComponentTransfer>
-    </filter>
-  </svg>
-
   <div class="container">
     <img class="bg-image" src="${imageUrl}" crossorigin="anonymous" />
     <div class="title-banner">
@@ -172,9 +159,9 @@ app.get('/', (req, res) => {
   .result{flex:1}
   .result img{max-width:100%;border:2px solid #333}
   .row{display:flex;align-items:center;gap:6px;margin:3px 0}
-  .row label{width:90px;font-size:11px;color:#aaa}
+  .row label{width:100px;font-size:11px;color:#aaa}
   .row input[type=range]{flex:1;height:16px}
-  .row .v{width:40px;font-size:11px;text-align:right;font-family:monospace;color:#0f0}
+  .row .v{width:45px;font-size:11px;text-align:right;font-family:monospace;color:#0f0}
   #status{color:#888;margin:8px 0}
   .dl{display:inline-block;margin-top:8px;padding:6px 16px;background:#2a5a2a;color:#fff;text-decoration:none;font-size:12px}
   .preset{display:inline-block;padding:4px 10px;background:#333;color:#fff;border:none;cursor:pointer;font-size:11px;margin:2px}
@@ -186,45 +173,31 @@ app.get('/', (req, res) => {
   <input type="file" id="fileInput" accept="image/*" />
   <span class="or">ou</span>
   <input type="text" id="imageUrl" placeholder="Image URL" />
-  <input type="text" id="title" placeholder="TITLE TEXT" style="max-width:300px" />
+  <input type="text" id="title" placeholder="TITRE ICI" style="max-width:300px" />
   <button onclick="generate()">Generate</button>
 </div>
 <div class="main">
   <div class="controls">
-    <h2>Presets (Canva-style)</h2>
-    <button class="preset" onclick="applyPreset('epic')">Epic</button>
-    <button class="preset" onclick="applyPreset('golden')">Golden</button>
-    <button class="preset" onclick="applyPreset('warm')">Warm</button>
-    <button class="preset" onclick="applyPreset('retro')">Retro</button>
-    <button class="preset" onclick="applyPreset('dramatic')">Dramatic</button>
-    <button class="preset" onclick="applyPreset('default')">Default V2</button>
+    <h2>Filtre Canva Moutarde</h2>
+    <div class="row"><label>Grayscale %</label><input type="range" id="grayscale" min="0" max="100" step="5" value="${d.grayscale}"><span class="v" id="grayscale-v">${d.grayscale}</span></div>
+    <div class="row"><label>Sepia %</label><input type="range" id="sepia" min="0" max="100" step="5" value="${d.sepia}"><span class="v" id="sepia-v">${d.sepia}</span></div>
+    <div class="row"><label>Saturate %</label><input type="range" id="saturate" min="50" max="500" step="10" value="${d.saturate}"><span class="v" id="saturate-v">${d.saturate}</span></div>
+    <div class="row"><label>Hue Rotate</label><input type="range" id="hueRotate" min="-30" max="30" step="1" value="${d.hueRotate}"><span class="v" id="hueRotate-v">${d.hueRotate}</span></div>
+    <div class="row"><label>Brightness %</label><input type="range" id="brightness" min="50" max="130" step="5" value="${d.brightness}"><span class="v" id="brightness-v">${d.brightness}</span></div>
+    <div class="row"><label>Contrast %</label><input type="range" id="contrast" min="50" max="200" step="5" value="${d.contrast}"><span class="v" id="contrast-v">${d.contrast}</span></div>
 
-    <h2>Image Filter</h2>
-    <div class="row"><label>Saturate</label><input type="range" id="saturate" min="0" max="1.5" step="0.05" value="${d.saturate}"><span class="v" id="saturate-v">${d.saturate}</span></div>
-    <div class="row"><label>Contrast</label><input type="range" id="contrast" min="0.5" max="2" step="0.05" value="${d.contrast}"><span class="v" id="contrast-v">${d.contrast}</span></div>
-    <div class="row"><label>Brightness</label><input type="range" id="brightness" min="0.3" max="1.5" step="0.05" value="${d.brightness}"><span class="v" id="brightness-v">${d.brightness}</span></div>
-    <div class="row"><label>Sepia</label><input type="range" id="sepia" min="0" max="1" step="0.05" value="${d.sepia}"><span class="v" id="sepia-v">${d.sepia}</span></div>
-    <div class="row"><label>Hue Rotate</label><input type="range" id="hueRotate" min="-60" max="60" step="5" value="${d.hueRotate}"><span class="v" id="hueRotate-v">${d.hueRotate}</span></div>
+    <h2>Banniere</h2>
+    <div class="row"><label>Transparence</label><input type="range" id="bannerAlpha" min="0.1" max="0.9" step="0.02" value="${d.bannerAlpha}"><span class="v" id="bannerAlpha-v">${d.bannerAlpha}</span></div>
 
-    <h2>Duotone Overlay</h2>
-    <div class="row"><label>Color 1 R</label><input type="range" id="overlayR" min="0" max="255" step="5" value="${d.overlayR}"><span class="v" id="overlayR-v">${d.overlayR}</span></div>
-    <div class="row"><label>Color 1 G</label><input type="range" id="overlayG" min="0" max="255" step="5" value="${d.overlayG}"><span class="v" id="overlayG-v">${d.overlayG}</span></div>
-    <div class="row"><label>Color 1 B</label><input type="range" id="overlayB" min="0" max="255" step="5" value="${d.overlayB}"><span class="v" id="overlayB-v">${d.overlayB}</span></div>
-    <div class="row"><label>Alpha 1</label><input type="range" id="overlayA" min="0" max="1" step="0.05" value="${d.overlayA}"><span class="v" id="overlayA-v">${d.overlayA}</span></div>
-    <div class="row"><label>Color 2 R</label><input type="range" id="overlay2R" min="0" max="255" step="5" value="${d.overlay2R}"><span class="v" id="overlay2R-v">${d.overlay2R}</span></div>
-    <div class="row"><label>Color 2 G</label><input type="range" id="overlay2G" min="0" max="255" step="5" value="${d.overlay2G}"><span class="v" id="overlay2G-v">${d.overlay2G}</span></div>
-    <div class="row"><label>Color 2 B</label><input type="range" id="overlay2B" min="0" max="255" step="5" value="${d.overlay2B}"><span class="v" id="overlay2B-v">${d.overlay2B}</span></div>
-    <div class="row"><label>Alpha 2</label><input type="range" id="overlay2A" min="0" max="1" step="0.05" value="${d.overlay2A}"><span class="v" id="overlay2A-v">${d.overlay2A}</span></div>
-
-    <h2>Screen Boost</h2>
-    <div class="row"><label>Boost R</label><input type="range" id="boostR" min="0" max="255" step="5" value="${d.boostR}"><span class="v" id="boostR-v">${d.boostR}</span></div>
-    <div class="row"><label>Boost G</label><input type="range" id="boostG" min="0" max="255" step="5" value="${d.boostG}"><span class="v" id="boostG-v">${d.boostG}</span></div>
-    <div class="row"><label>Boost B</label><input type="range" id="boostB" min="0" max="255" step="5" value="${d.boostB}"><span class="v" id="boostB-v">${d.boostB}</span></div>
-    <div class="row"><label>Boost Alpha</label><input type="range" id="boostA" min="0" max="0.5" step="0.05" value="${d.boostA}"><span class="v" id="boostA-v">${d.boostA}</span></div>
+    <h2>Logo</h2>
+    <div class="row"><label>Largeur px</label><input type="range" id="logoWidth" min="100" max="300" step="10" value="${d.logoWidth}"><span class="v" id="logoWidth-v">${d.logoWidth}</span></div>
+    <div class="row"><label>Hauteur px</label><input type="range" id="logoHeight" min="40" max="120" step="5" value="${d.logoHeight}"><span class="v" id="logoHeight-v">${d.logoHeight}</span></div>
+    <div class="row"><label>Marge bas px</label><input type="range" id="logoBottom" min="10" max="80" step="5" value="${d.logoBottom}"><span class="v" id="logoBottom-v">${d.logoBottom}</span></div>
+    <div class="row"><label>Marge droite px</label><input type="range" id="logoRight" min="10" max="80" step="5" value="${d.logoRight}"><span class="v" id="logoRight-v">${d.logoRight}</span></div>
 
     <h2 style="color:#0f0">Export</h2>
-    <button class="preset" onclick="copyJSON()" style="background:#2a5a2a">Copy filter JSON</button>
-    <pre id="jsonOut" style="font-size:10px;color:#0f0;margin-top:5px;max-height:120px;overflow:auto"></pre>
+    <button class="preset" onclick="copyJSON()" style="background:#2a5a2a">Copier JSON</button>
+    <pre id="jsonOut" style="font-size:10px;color:#0f0;margin-top:5px;max-height:150px;overflow:auto"></pre>
   </div>
   <div class="result">
     <div id="status"></div>
@@ -232,28 +205,12 @@ app.get('/', (req, res) => {
   </div>
 </div>
 <script>
-const sliders=['saturate','contrast','brightness','sepia','hueRotate','overlayR','overlayG','overlayB','overlayA','overlay2R','overlay2G','overlay2B','overlay2A','boostR','boostG','boostB','boostA'];
+const sliders=['grayscale','sepia','saturate','hueRotate','brightness','contrast','bannerAlpha','logoWidth','logoHeight','logoBottom','logoRight'];
 sliders.forEach(id=>{
-  const el=document.getElementById(id);
-  el.addEventListener('input',()=>{document.getElementById(id+'-v').textContent=el.value});
-});
-
-const presets={
-  default:{saturate:${d.saturate},contrast:${d.contrast},brightness:${d.brightness},sepia:${d.sepia},hueRotate:${d.hueRotate},overlayR:${d.overlayR},overlayG:${d.overlayG},overlayB:${d.overlayB},overlayA:${d.overlayA},overlay2R:${d.overlay2R},overlay2G:${d.overlay2G},overlay2B:${d.overlay2B},overlay2A:${d.overlay2A},boostR:${d.boostR},boostG:${d.boostG},boostB:${d.boostB},boostA:${d.boostA}},
-  epic:{saturate:0.25,contrast:1.15,brightness:0.85,sepia:0.4,hueRotate:-5,overlayR:140,overlayG:80,overlayB:20,overlayA:0.65,overlay2R:220,overlay2G:180,overlay2B:40,overlay2A:0.50,boostR:220,boostG:170,boostB:50,boostA:0.20},
-  golden:{saturate:0.3,contrast:1.1,brightness:0.9,sepia:0.5,hueRotate:0,overlayR:180,overlayG:140,overlayB:20,overlayA:0.60,overlay2R:230,overlay2G:200,overlay2B:60,overlay2A:0.50,boostR:230,boostG:190,boostB:50,boostA:0.22},
-  warm:{saturate:0.45,contrast:1.05,brightness:0.92,sepia:0.35,hueRotate:5,overlayR:170,overlayG:110,overlayB:30,overlayA:0.55,overlay2R:210,overlay2G:170,overlay2B:50,overlay2A:0.45,boostR:210,boostG:160,boostB:40,boostA:0.20},
-  retro:{saturate:0.2,contrast:1.0,brightness:0.88,sepia:0.6,hueRotate:10,overlayR:150,overlayG:120,overlayB:40,overlayA:0.65,overlay2R:200,overlay2G:180,overlay2B:70,overlay2A:0.55,boostR:190,boostG:160,boostB:60,boostA:0.18},
-  dramatic:{saturate:0.15,contrast:1.3,brightness:0.8,sepia:0.35,hueRotate:-10,overlayR:120,overlayG:60,overlayB:15,overlayA:0.75,overlay2R:200,overlay2G:150,overlay2B:30,overlay2A:0.55,boostR:180,boostG:130,boostB:30,boostA:0.15}
-};
-
-function applyPreset(name){
-  const p=presets[name];
-  sliders.forEach(id=>{
-    const el=document.getElementById(id);
-    if(p[id]!==undefined){el.value=p[id];document.getElementById(id+'-v').textContent=p[id]}
+  document.getElementById(id).addEventListener('input',function(){
+    document.getElementById(id+'-v').textContent=this.value;
   });
-}
+});
 
 function getFilters(){
   const f={};
@@ -282,7 +239,7 @@ async function generate(){
   if(!url)return alert('Choisir une image (upload ou URL)');
   if(!title)return alert('Entrer un titre');
   document.querySelector('button').disabled=true;
-  document.getElementById('status').textContent='Generating (~5s)...';
+  document.getElementById('status').textContent='Generation en cours (~5s)...';
   document.getElementById('resultImg').innerHTML='';
   try{
     const r=await fetch('/generate-base64',{
@@ -291,10 +248,10 @@ async function generate(){
     });
     const data=await r.json();
     if(data.success){
-      document.getElementById('resultImg').innerHTML='<img src="'+data.image+'"/><br><a class="dl" href="'+data.image+'" download="guardian.png">Download PNG</a>';
-      document.getElementById('status').textContent='Done!';
-    }else{document.getElementById('status').textContent='Error: '+(data.error||'Unknown')}
-  }catch(e){document.getElementById('status').textContent='Error: '+e.message}
+      document.getElementById('resultImg').innerHTML='<img src="'+data.image+'"/><br><a class="dl" href="'+data.image+'" download="guardian.png">Telecharger PNG</a>';
+      document.getElementById('status').textContent='Termine !';
+    }else{document.getElementById('status').textContent='Erreur: '+(data.error||'Inconnue')}
+  }catch(e){document.getElementById('status').textContent='Erreur: '+e.message}
   document.querySelector('button').disabled=false;
 }
 </script>
