@@ -50,11 +50,10 @@ function generateHTML(imageUrl, title) {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    /* Desaturate and warm up the image for duotone base */
-    filter: saturate(0.3) contrast(1.1) brightness(0.85);
+    filter: saturate(0.4) contrast(1.05) brightness(0.9) sepia(0.3);
   }
 
-  /* Warm duotone overlay — gradient from dark red to gold/yellow */
+  /* Golden duotone overlay — warm yellow dominant */
   .duotone-overlay {
     position: absolute;
     top: 0; left: 0;
@@ -62,15 +61,15 @@ function generateHTML(imageUrl, title) {
     height: 100%;
     background: linear-gradient(
       135deg,
-      rgba(120, 20, 30, 0.75) 0%,
-      rgba(140, 40, 20, 0.65) 30%,
-      rgba(180, 130, 40, 0.60) 70%,
-      rgba(200, 170, 50, 0.55) 100%
+      rgba(160, 100, 20, 0.70) 0%,
+      rgba(190, 150, 30, 0.65) 30%,
+      rgba(200, 170, 40, 0.60) 70%,
+      rgba(210, 180, 50, 0.55) 100%
     );
     mix-blend-mode: multiply;
   }
 
-  /* Second overlay for depth and richness */
+  /* Golden screen overlay for warmth */
   .color-boost {
     position: absolute;
     top: 0; left: 0;
@@ -78,25 +77,26 @@ function generateHTML(imageUrl, title) {
     height: 100%;
     background: linear-gradient(
       180deg,
-      rgba(160, 80, 20, 0.25) 0%,
-      rgba(180, 140, 40, 0.20) 50%,
-      rgba(120, 30, 20, 0.30) 100%
+      rgba(200, 160, 40, 0.25) 0%,
+      rgba(210, 180, 50, 0.20) 50%,
+      rgba(180, 130, 30, 0.25) 100%
     );
     mix-blend-mode: screen;
   }
 
-  /* Title banner — semi-transparent dark blue, centered */
+  /* Title banner — semi-transparent navy with subtle border */
   .title-banner {
     position: absolute;
-    left: 0;
-    right: 0;
+    left: 40px;
+    right: 40px;
     top: 50%;
-    transform: translateY(-50%);
+    transform: translateY(-40%);
     background: rgba(26, 43, 80, 0.72);
-    padding: 40px 60px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 45px 55px;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
   }
 
   .title-text {
@@ -104,10 +104,10 @@ function generateHTML(imageUrl, title) {
     font-family: 'Oswald', 'Impact', 'Arial Narrow', sans-serif;
     font-weight: 700;
     font-size: ${titleFontSize}px;
-    line-height: 1.2;
+    line-height: 1.25;
     text-transform: uppercase;
-    text-align: center;
-    letter-spacing: 2px;
+    text-align: left;
+    letter-spacing: 3px;
     max-width: 900px;
   }
 
