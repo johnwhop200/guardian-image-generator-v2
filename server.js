@@ -2,7 +2,7 @@ const express = require('express');
 const puppeteer = require('puppeteer-core');
 
 const app = express();
-app.use(express.json({ limit: '30mb' }));
+app.use(express.json({ limit: '10mb' }));
 
 const PORT = process.env.PORT || 3000;
 
@@ -17,16 +17,7 @@ const LOGO_SVG = `
 
 const logoDataUri = `data:image/svg+xml;base64,${Buffer.from(LOGO_SVG).toString('base64')}`;
 
-// ChatGPT exact values for Canva "Moutarde" duotone
-const DEFAULTS = {
-  grayscale: 0.4, contrast: 1.25, brightness: 0.92, saturate: 0.8,
-  duotoneOpacity: 0.75, blendMode: 'soft-light',
-  bannerAlpha: 0.42,
-  logoWidth: 200, logoHeight: 80, logoBottom: 25, logoRight: 25
-};
-
-function generateHTML(imageUrl, title, filters) {
-  const f = Object.assign({}, DEFAULTS, filters || {});
+function generateHTML(imageUrl, title) {
   const SIZE = 1080;
 
   // Auto-size title font based on title length
@@ -49,48 +40,63 @@ function generateHTML(imageUrl, title, filters) {
     height: ${SIZE}px;
     position: relative;
     overflow: hidden;
-    background: #0f1117;
+    background: #2a1a0a;
   }
 
-  /* Base image: partial desaturate + contrast + brightness */
+  /* Background image — fills entire frame */
   .bg-image {
     position: absolute;
     top: 0; left: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
-    filter: grayscale(${f.grayscale}) contrast(${f.contrast}) brightness(${f.brightness}) saturate(${f.saturate});
+    /* Desaturate and warm up the image for duotone base */
+    filter: saturate(0.3) contrast(1.1) brightness(0.85);
   }
 
-  /* Duotone gradient map: yellow highlights → violet → blue shadows */
-  .duotone {
+  /* Warm duotone overlay — gradient from dark red to gold/yellow */
+  .duotone-overlay {
     position: absolute;
     top: 0; left: 0;
     width: 100%;
     height: 100%;
     background: linear-gradient(
-      to bottom,
-      #f4c542 0%,
-      #e0b03a 30%,
-      #6b5ca5 65%,
-      #2c2f4a 100%
+      135deg,
+      rgba(120, 20, 30, 0.75) 0%,
+      rgba(140, 40, 20, 0.65) 30%,
+      rgba(180, 130, 40, 0.60) 70%,
+      rgba(200, 170, 50, 0.55) 100%
     );
-    mix-blend-mode: ${f.blendMode};
-    opacity: ${f.duotoneOpacity};
+    mix-blend-mode: multiply;
   }
 
-  /* Title banner — blue, 42% transparency */
+  /* Second overlay for depth and richness */
+  .color-boost {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      180deg,
+      rgba(160, 80, 20, 0.25) 0%,
+      rgba(180, 140, 40, 0.20) 50%,
+      rgba(120, 30, 20, 0.30) 100%
+    );
+    mix-blend-mode: screen;
+  }
+
+  /* Title banner — semi-transparent dark blue, centered */
   .title-banner {
     position: absolute;
-    left: 40px;
-    right: 40px;
+    left: 0;
+    right: 0;
     top: 50%;
-    transform: translateY(-40%);
-    background: rgba(26, 43, 94, ${f.bannerAlpha});
-    padding: 45px 55px;
+    transform: translateY(-50%);
+    background: rgba(26, 43, 80, 0.72);
+    padding: 40px 60px;
     display: flex;
     align-items: center;
-    justify-content: flex-start;
+    justify-content: center;
   }
 
   .title-text {
@@ -98,27 +104,28 @@ function generateHTML(imageUrl, title, filters) {
     font-family: 'Oswald', 'Impact', 'Arial Narrow', sans-serif;
     font-weight: 700;
     font-size: ${titleFontSize}px;
-    line-height: 1.25;
+    line-height: 1.2;
     text-transform: uppercase;
-    text-align: left;
-    letter-spacing: 3px;
+    text-align: center;
+    letter-spacing: 2px;
     max-width: 900px;
   }
 
-  /* Logo — bottom right */
+  /* Logo — bottom right corner */
   .logo {
     position: absolute;
-    bottom: ${f.logoBottom}px;
-    right: ${f.logoRight}px;
-    width: ${f.logoWidth}px;
-    height: ${f.logoHeight}px;
+    bottom: 30px;
+    right: 30px;
+    width: 160px;
+    height: 64px;
   }
 </style>
 </head>
 <body>
   <div class="container">
     <img class="bg-image" src="${imageUrl}" crossorigin="anonymous" />
-    <div class="duotone"></div>
+    <div class="duotone-overlay"></div>
+    <div class="color-boost"></div>
     <div class="title-banner">
       <div class="title-text">${title}</div>
     </div>
@@ -154,137 +161,9 @@ async function getBrowser() {
   return browser;
 }
 
-// Test UI with colorimetry sliders
+// Root endpoint
 app.get('/', (req, res) => {
-  const d = DEFAULTS;
-  res.send(`<!DOCTYPE html>
-<html><head>
-<meta charset="utf-8">
-<title>Guardian V2 — Test & Calibration</title>
-<style>
-  body{background:#1a1a1a;color:#fff;font-family:Arial,sans-serif;margin:20px;font-size:13px}
-  h1{font-size:18px;margin-bottom:15px}
-  h2{font-size:13px;color:#e8c840;margin:15px 0 8px;border-bottom:1px solid #333;padding-bottom:4px}
-  .top{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;align-items:center}
-  .top input[type=text]{flex:1;min-width:200px;padding:8px;background:#222;color:#fff;border:1px solid #444}
-  .top input[type=file]{font-size:12px}
-  .or{color:#666;font-size:11px}
-  button{padding:10px 25px;background:#1a2b5e;color:#fff;border:none;cursor:pointer;font-size:14px}
-  button:hover{background:#2a3b7e}
-  button:disabled{opacity:0.5}
-  .main{display:flex;gap:20px}
-  .controls{width:320px;flex-shrink:0}
-  .result{flex:1}
-  .result img{max-width:100%;border:2px solid #333}
-  .row{display:flex;align-items:center;gap:6px;margin:3px 0}
-  .row label{width:100px;font-size:11px;color:#aaa}
-  .row input[type=range]{flex:1;height:16px}
-  .row .v{width:45px;font-size:11px;text-align:right;font-family:monospace;color:#0f0}
-  #status{color:#888;margin:8px 0}
-  .dl{display:inline-block;margin-top:8px;padding:6px 16px;background:#2a5a2a;color:#fff;text-decoration:none;font-size:12px}
-  .preset{display:inline-block;padding:4px 10px;background:#333;color:#fff;border:none;cursor:pointer;font-size:11px;margin:2px}
-  .preset:hover{background:#555}
-</style>
-</head><body>
-<h1>Guardian Image Generator V2 — Test & Calibration</h1>
-<div class="top">
-  <input type="file" id="fileInput" accept="image/*" />
-  <span class="or">ou</span>
-  <input type="text" id="imageUrl" placeholder="Image URL" />
-  <input type="text" id="title" placeholder="TITRE ICI" style="max-width:300px" />
-  <button onclick="generate()">Generate</button>
-</div>
-<div class="main">
-  <div class="controls">
-    <h2>Image</h2>
-    <div class="row"><label>Grayscale</label><input type="range" id="grayscale" min="0" max="1" step="0.05" value="${d.grayscale}"><span class="v" id="grayscale-v">${d.grayscale}</span></div>
-    <div class="row"><label>Contrast</label><input type="range" id="contrast" min="0.5" max="2" step="0.05" value="${d.contrast}"><span class="v" id="contrast-v">${d.contrast}</span></div>
-    <div class="row"><label>Brightness</label><input type="range" id="brightness" min="0.5" max="1.3" step="0.05" value="${d.brightness}"><span class="v" id="brightness-v">${d.brightness}</span></div>
-    <div class="row"><label>Saturate</label><input type="range" id="saturate" min="0" max="1.5" step="0.05" value="${d.saturate}"><span class="v" id="saturate-v">${d.saturate}</span></div>
-
-    <h2>Duotone (jaune→violet→bleu)</h2>
-    <div class="row"><label>Opacite</label><input type="range" id="duotoneOpacity" min="0.2" max="1" step="0.05" value="${d.duotoneOpacity}"><span class="v" id="duotoneOpacity-v">${d.duotoneOpacity}</span></div>
-    <div class="row"><label>Blend</label><select id="blendMode" style="flex:1;background:#222;color:#fff;padding:4px">
-      <option value="color">color</option>
-      <option value="soft-light" selected>soft-light</option>
-      <option value="overlay">overlay</option>
-      <option value="multiply">multiply</option>
-    </select><span class="v" id="blendMode-v">${d.blendMode}</span></div>
-
-    <h2>Banniere</h2>
-    <div class="row"><label>Transparence</label><input type="range" id="bannerAlpha" min="0.1" max="0.9" step="0.02" value="${d.bannerAlpha}"><span class="v" id="bannerAlpha-v">${d.bannerAlpha}</span></div>
-
-    <h2>Logo</h2>
-    <div class="row"><label>Largeur px</label><input type="range" id="logoWidth" min="100" max="300" step="10" value="${d.logoWidth}"><span class="v" id="logoWidth-v">${d.logoWidth}</span></div>
-    <div class="row"><label>Hauteur px</label><input type="range" id="logoHeight" min="40" max="120" step="5" value="${d.logoHeight}"><span class="v" id="logoHeight-v">${d.logoHeight}</span></div>
-    <div class="row"><label>Marge bas px</label><input type="range" id="logoBottom" min="10" max="80" step="5" value="${d.logoBottom}"><span class="v" id="logoBottom-v">${d.logoBottom}</span></div>
-    <div class="row"><label>Marge droite px</label><input type="range" id="logoRight" min="10" max="80" step="5" value="${d.logoRight}"><span class="v" id="logoRight-v">${d.logoRight}</span></div>
-
-    <h2 style="color:#0f0">Export</h2>
-    <button class="preset" onclick="copyJSON()" style="background:#2a5a2a">Copier JSON</button>
-    <pre id="jsonOut" style="font-size:10px;color:#0f0;margin-top:5px;max-height:150px;overflow:auto"></pre>
-  </div>
-  <div class="result">
-    <div id="status"></div>
-    <div id="resultImg"></div>
-  </div>
-</div>
-<script>
-const sliders=['grayscale','contrast','brightness','saturate','duotoneOpacity','bannerAlpha','logoWidth','logoHeight','logoBottom','logoRight'];
-sliders.forEach(id=>{
-  document.getElementById(id).addEventListener('input',function(){
-    document.getElementById(id+'-v').textContent=this.value;
-  });
-});
-
-function getFilters(){
-  const f={};
-  sliders.forEach(id=>{f[id]=parseFloat(document.getElementById(id).value)});
-  f.blendMode=document.getElementById('blendMode').value;
-  return f;
-}
-document.getElementById('blendMode').addEventListener('change',function(){
-  document.getElementById('blendMode-v').textContent=this.value;
-});
-
-function copyJSON(){
-  const j=JSON.stringify(getFilters(),null,2);
-  document.getElementById('jsonOut').textContent=j;
-  navigator.clipboard.writeText(j).catch(()=>{});
-}
-
-let uploadedDataUri=null;
-document.getElementById('fileInput').addEventListener('change',function(e){
-  const file=e.target.files[0];
-  if(!file)return;
-  const reader=new FileReader();
-  reader.onload=function(ev){uploadedDataUri=ev.target.result;document.getElementById('imageUrl').value='[uploaded: '+file.name+']'};
-  reader.readAsDataURL(file);
-});
-
-async function generate(){
-  const url=uploadedDataUri||document.getElementById('imageUrl').value;
-  const title=document.getElementById('title').value;
-  if(!url)return alert('Choisir une image (upload ou URL)');
-  if(!title)return alert('Entrer un titre');
-  document.querySelector('button').disabled=true;
-  document.getElementById('status').textContent='Generation en cours (~5s)...';
-  document.getElementById('resultImg').innerHTML='';
-  try{
-    const r=await fetch('/generate-base64',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({imageUrl:url,title:title,filters:getFilters()})
-    });
-    const data=await r.json();
-    if(data.success){
-      document.getElementById('resultImg').innerHTML='<img src="'+data.image+'"/><br><a class="dl" href="'+data.image+'" download="guardian.png">Telecharger PNG</a>';
-      document.getElementById('status').textContent='Termine !';
-    }else{document.getElementById('status').textContent='Erreur: '+(data.error||'Inconnue')}
-  }catch(e){document.getElementById('status').textContent='Erreur: '+e.message}
-  document.querySelector('button').disabled=false;
-}
-</script>
-</body></html>`);
+  res.json({ service: 'guardian-image-generator-v2', status: 'running', version: '2.0.1' });
 });
 
 // Health check
@@ -294,7 +173,7 @@ app.get('/health', (req, res) => {
 
 // Generate branded image
 app.post('/generate', async (req, res) => {
-  const { imageUrl, title, filters } = req.body;
+  const { imageUrl, title } = req.body;
 
   if (!imageUrl) {
     return res.status(400).json({ error: 'imageUrl is required' });
@@ -311,7 +190,7 @@ app.post('/generate', async (req, res) => {
 
     await page.setViewport({ width: SIZE, height: SIZE, deviceScaleFactor: 1 });
 
-    const html = generateHTML(imageUrl, title, filters);
+    const html = generateHTML(imageUrl, title);
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 15000 });
 
     // Wait for background image to load
@@ -347,7 +226,7 @@ app.post('/generate', async (req, res) => {
 
 // Generate and return as base64
 app.post('/generate-base64', async (req, res) => {
-  const { imageUrl, title, filters } = req.body;
+  const { imageUrl, title } = req.body;
 
   if (!imageUrl || !title) {
     return res.status(400).json({ error: 'imageUrl and title are required' });
@@ -361,7 +240,7 @@ app.post('/generate-base64', async (req, res) => {
 
     await page.setViewport({ width: SIZE, height: SIZE, deviceScaleFactor: 1 });
 
-    const html = generateHTML(imageUrl, title, filters);
+    const html = generateHTML(imageUrl, title);
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 15000 });
 
     await page.evaluate(() => {
