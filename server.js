@@ -8,27 +8,48 @@ app.use(express.json({ limit: '10mb' }));
 
 const PORT = process.env.PORT || 3000;
 
-// Logo — charge le PNG du client s'il existe, sinon fallback SVG
-let logoDataUri;
-const logoPath = path.join(__dirname, 'logo.png');
-if (fs.existsSync(logoPath)) {
-  const logoBuffer = fs.readFileSync(logoPath);
-  logoDataUri = `data:image/png;base64,${logoBuffer.toString('base64')}`;
-  console.log('Logo loaded from logo.png');
-} else {
-  const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="80" viewBox="0 0 200 80">
-    <rect width="200" height="80" fill="#1a2b5e" rx="3"/>
-    <text x="100" y="28" text-anchor="middle" font-family="Georgia,serif" font-size="20" font-weight="bold" fill="white">The</text>
-    <text x="100" y="50" text-anchor="middle" font-family="Georgia,serif" font-size="22" font-weight="bold" fill="white">Guardian</text>
-    <text x="100" y="72" text-anchor="middle" font-family="Georgia,serif" font-size="22" font-weight="bold" fill="#e8c840">Africa</text>
-  </svg>`;
-  logoDataUri = `data:image/svg+xml;base64,${Buffer.from(LOGO_SVG).toString('base64')}`;
-  console.log('WARNING: logo.png not found, using fallback SVG');
+// --- Logo loading (multi-project) ---
+const logos = {};
+
+function loadLogo(name, filePath) {
+  if (fs.existsSync(filePath)) {
+    const buf = fs.readFileSync(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    const mime = ext === '.png' ? 'image/png' : 'image/jpeg';
+    logos[name] = `data:${mime};base64,${buf.toString('base64')}`;
+    console.log(`Logo '${name}' loaded from ${path.basename(filePath)}`);
+  } else {
+    console.log(`WARNING: Logo '${name}' not found at ${filePath}`);
+  }
 }
 
-function generateHTML(imageUrl, title, options) {
+// Load from logos/ directory
+loadLogo('guardian', path.join(__dirname, 'logos', 'guardian.png'));
+loadLogo('tojo', path.join(__dirname, 'logos', 'tojo.jpg'));
+
+// Fallback: legacy logo.png at root
+if (!logos.guardian) {
+  const legacyPath = path.join(__dirname, 'logo.png');
+  if (fs.existsSync(legacyPath)) {
+    loadLogo('guardian', legacyPath);
+  } else {
+    const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="80" viewBox="0 0 200 80">
+      <rect width="200" height="80" fill="#1a2b5e" rx="3"/>
+      <text x="100" y="28" text-anchor="middle" font-family="Georgia,serif" font-size="20" font-weight="bold" fill="white">The</text>
+      <text x="100" y="50" text-anchor="middle" font-family="Georgia,serif" font-size="22" font-weight="bold" fill="white">Guardian</text>
+      <text x="100" y="72" text-anchor="middle" font-family="Georgia,serif" font-size="22" font-weight="bold" fill="#e8c840">Africa</text>
+    </svg>`;
+    logos.guardian = `data:image/svg+xml;base64,${Buffer.from(LOGO_SVG).toString('base64')}`;
+    console.log('WARNING: No guardian logo found, using fallback SVG');
+  }
+}
+
+// --- HTML Generators ---
+
+// Guardian: full duotone + banner + title + logo
+function generateHTMLGuardian(imageUrl, title, options) {
   const SIZE = 1080;
-  const logo = (options && options.logoUrl) || logoDataUri;
+  const logo = (options && options.logoUrl) || logos.guardian;
 
   let titleFontSize = 52;
   if (title.length > 80) titleFontSize = 38;
@@ -145,6 +166,62 @@ function generateHTML(imageUrl, title, options) {
 </html>`;
 }
 
+// Tojo: original image + logo overlay only (no filter, no title)
+function generateHTMLTojo(imageUrl, options) {
+  const SIZE = 1080;
+  const logo = (options && options.logoUrl) || logos.tojo;
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  .container {
+    width: ${SIZE}px;
+    height: ${SIZE}px;
+    position: relative;
+    overflow: hidden;
+    background: #000;
+  }
+
+  .bg-image {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+  }
+
+  .logo {
+    position: absolute;
+    top: 830px;
+    left: 30px;
+    width: 115px;
+    height: auto;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <img class="bg-image" src="${imageUrl}" crossorigin="anonymous" />
+    <img class="logo" src="${logo}" />
+  </div>
+</body>
+</html>`;
+}
+
+// Route to the right generator
+function generateHTML(imageUrl, title, options) {
+  const profile = (options && options.profile) || 'guardian';
+  if (profile === 'tojo') {
+    return generateHTMLTojo(imageUrl, options);
+  }
+  return generateHTMLGuardian(imageUrl, title, options);
+}
+
+// --- Browser ---
+
 let browser = null;
 
 async function getBrowser() {
@@ -171,19 +248,26 @@ async function getBrowser() {
   return browser;
 }
 
+// --- Routes ---
+
 app.get('/', (req, res) => {
-  res.json({ service: 'guardian-image-generator-v2', status: 'running', version: '2.1.0' });
+  res.json({
+    service: 'image-generator',
+    status: 'running',
+    version: '3.0.0',
+    profiles: Object.keys(logos),
+  });
 });
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'guardian-image-generator-v2' });
+  res.json({ status: 'ok', service: 'image-generator', profiles: Object.keys(logos) });
 });
 
 app.post('/generate', async (req, res) => {
-  const { imageUrl, title, logoUrl } = req.body;
+  const { imageUrl, title, logoUrl, profile } = req.body;
 
   if (!imageUrl) return res.status(400).json({ error: 'imageUrl is required' });
-  if (!title) return res.status(400).json({ error: 'title is required' });
+  if (!title && profile !== 'tojo') return res.status(400).json({ error: 'title is required (or use profile: "tojo")' });
 
   const SIZE = 1080;
 
@@ -192,7 +276,7 @@ app.post('/generate', async (req, res) => {
     const page = await b.newPage();
     await page.setViewport({ width: SIZE, height: SIZE, deviceScaleFactor: 1 });
 
-    const html = generateHTML(imageUrl, title, { logoUrl });
+    const html = generateHTML(imageUrl, title || '', { logoUrl, profile });
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 15000 });
 
     await page.evaluate(() => {
@@ -225,9 +309,10 @@ app.post('/generate', async (req, res) => {
 });
 
 app.post('/generate-base64', async (req, res) => {
-  const { imageUrl, title, logoUrl } = req.body;
+  const { imageUrl, title, logoUrl, profile } = req.body;
 
-  if (!imageUrl || !title) return res.status(400).json({ error: 'imageUrl and title are required' });
+  if (!imageUrl) return res.status(400).json({ error: 'imageUrl is required' });
+  if (!title && profile !== 'tojo') return res.status(400).json({ error: 'title is required (or use profile: "tojo")' });
 
   const SIZE = 1080;
 
@@ -236,7 +321,7 @@ app.post('/generate-base64', async (req, res) => {
     const page = await b.newPage();
     await page.setViewport({ width: SIZE, height: SIZE, deviceScaleFactor: 1 });
 
-    const html = generateHTML(imageUrl, title, { logoUrl });
+    const html = generateHTML(imageUrl, title || '', { logoUrl, profile });
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 15000 });
 
     await page.evaluate(() => {
@@ -262,7 +347,8 @@ app.post('/generate-base64', async (req, res) => {
     res.json({
       success: true,
       image: `data:image/png;base64,${screenshot}`,
-      size: screenshot.length
+      size: screenshot.length,
+      profile: profile || 'guardian'
     });
 
   } catch (error) {
@@ -272,7 +358,8 @@ app.post('/generate-base64', async (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Guardian Image Generator V2.1.0 running on port ${PORT}`);
+  console.log(`Image Generator V3.0.0 running on port ${PORT}`);
+  console.log(`Profiles loaded: ${Object.keys(logos).join(', ')}`);
 }).on('error', (err) => {
   console.error('Server failed to start:', err);
   process.exit(1);
