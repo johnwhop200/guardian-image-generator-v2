@@ -1,26 +1,35 @@
 const express = require('express');
 const puppeteer = require('puppeteer-core');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 
 const PORT = process.env.PORT || 3000;
 
-// Logo SVG inline — "The Guardian" white + "Africa" yellow on navy background
-const LOGO_SVG = `
-<svg xmlns="http://www.w3.org/2000/svg" width="200" height="80" viewBox="0 0 200 80">
-  <rect width="200" height="80" fill="#1a2b5e" rx="3"/>
-  <text x="100" y="28" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="20" font-weight="bold" fill="white">The</text>
-  <text x="100" y="50" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="22" font-weight="bold" fill="white">Guardian</text>
-  <text x="100" y="72" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="22" font-weight="bold" fill="#e8c840">Africa</text>
-</svg>`;
+// Logo — charge le PNG du client s'il existe, sinon fallback SVG
+let logoDataUri;
+const logoPath = path.join(__dirname, 'logo.png');
+if (fs.existsSync(logoPath)) {
+  const logoBuffer = fs.readFileSync(logoPath);
+  logoDataUri = `data:image/png;base64,${logoBuffer.toString('base64')}`;
+  console.log('Logo loaded from logo.png');
+} else {
+  const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="80" viewBox="0 0 200 80">
+    <rect width="200" height="80" fill="#1a2b5e" rx="3"/>
+    <text x="100" y="28" text-anchor="middle" font-family="Georgia,serif" font-size="20" font-weight="bold" fill="white">The</text>
+    <text x="100" y="50" text-anchor="middle" font-family="Georgia,serif" font-size="22" font-weight="bold" fill="white">Guardian</text>
+    <text x="100" y="72" text-anchor="middle" font-family="Georgia,serif" font-size="22" font-weight="bold" fill="#e8c840">Africa</text>
+  </svg>`;
+  logoDataUri = `data:image/svg+xml;base64,${Buffer.from(LOGO_SVG).toString('base64')}`;
+  console.log('WARNING: logo.png not found, using fallback SVG');
+}
 
-const logoDataUri = `data:image/svg+xml;base64,${Buffer.from(LOGO_SVG).toString('base64')}`;
-
-function generateHTML(imageUrl, title) {
+function generateHTML(imageUrl, title, options) {
   const SIZE = 1080;
+  const logo = (options && options.logoUrl) || logoDataUri;
 
-  // Auto-size title font based on title length
   let titleFontSize = 52;
   if (title.length > 80) titleFontSize = 38;
   else if (title.length > 60) titleFontSize = 42;
@@ -32,7 +41,6 @@ function generateHTML(imageUrl, title) {
 <meta charset="utf-8">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@600;700&display=swap');
-
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   .container {
@@ -40,65 +48,54 @@ function generateHTML(imageUrl, title) {
     height: ${SIZE}px;
     position: relative;
     overflow: hidden;
-    background: #2a1a0a;
+    background: #14151c;
   }
 
-  /* Background image — fills entire frame */
   .bg-image {
     position: absolute;
     top: 0; left: 0;
-    width: 100%;
-    height: 100%;
+    width: 100%; height: 100%;
     object-fit: cover;
-    /* Desaturate and warm up the image for duotone base */
-    filter: saturate(0.3) contrast(1.1) brightness(0.85);
+    filter: contrast(1.32) brightness(0.88);
   }
 
-  /* Warm duotone overlay — gradient from dark red to gold/yellow */
-  .duotone-overlay {
+  .gradmap-image {
     position: absolute;
     top: 0; left: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(
-      135deg,
-      rgba(120, 20, 30, 0.75) 0%,
-      rgba(140, 40, 20, 0.65) 30%,
-      rgba(180, 130, 40, 0.60) 70%,
-      rgba(200, 170, 50, 0.55) 100%
-    );
-    mix-blend-mode: multiply;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    filter: contrast(1.32) brightness(0.88) url(#gradmap);
+    opacity: 0.68;
+    mix-blend-mode: color;
   }
 
-  /* Second overlay for depth and richness */
-  .color-boost {
+  .tint {
     position: absolute;
     top: 0; left: 0;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(
-      180deg,
-      rgba(160, 80, 20, 0.25) 0%,
-      rgba(180, 140, 40, 0.20) 50%,
-      rgba(120, 30, 20, 0.30) 100%
-    );
-    mix-blend-mode: screen;
+    width: 100%; height: 100%;
+    background: #c86030;
+    mix-blend-mode: soft-light;
+    opacity: 0.35;
   }
 
-  /* Title banner — semi-transparent dark blue, centered */
-  .title-banner {
+  .banner-wrap {
     position: absolute;
-    left: 0;
-    right: 0;
+    left: 0; right: 0;
     top: 50%;
     transform: translateY(-50%);
-    background: rgba(26, 43, 80, 0.72);
     padding: 40px 60px;
     display: flex;
     align-items: center;
     justify-content: center;
   }
-
+  .banner-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: #2d3e5f;
+    opacity: 0.72;
+    mix-blend-mode: multiply;
+  }
   .title-text {
     color: #ffffff;
     font-family: 'Oswald', 'Impact', 'Arial Narrow', sans-serif;
@@ -109,27 +106,40 @@ function generateHTML(imageUrl, title) {
     text-align: center;
     letter-spacing: 2px;
     max-width: 900px;
+    position: relative;
+    z-index: 2;
   }
 
-  /* Logo — bottom right corner */
   .logo {
     position: absolute;
-    bottom: 30px;
+    bottom: 370px;
     right: 30px;
-    width: 160px;
-    height: 64px;
+    width: 190px;
+    height: auto;
   }
 </style>
 </head>
 <body>
+  <svg style="position:absolute;width:0;height:0">
+    <filter id="gradmap" color-interpolation-filters="sRGB">
+      <feColorMatrix type="saturate" values="0" result="gray"/>
+      <feComponentTransfer in="gray">
+        <feFuncR type="table" tableValues="0.165 0.294 0.894 0.765 0.894"/>
+        <feFuncG type="table" tableValues="0.122 0.227 0.796 0.573 0.694"/>
+        <feFuncB type="table" tableValues="0.267 0.369 0.145 0.176 0.165"/>
+      </feComponentTransfer>
+    </filter>
+  </svg>
+
   <div class="container">
     <img class="bg-image" src="${imageUrl}" crossorigin="anonymous" />
-    <div class="duotone-overlay"></div>
-    <div class="color-boost"></div>
-    <div class="title-banner">
+    <img class="gradmap-image" src="${imageUrl}" crossorigin="anonymous" />
+    <div class="tint"></div>
+    <div class="banner-wrap">
+      <div class="banner-overlay"></div>
       <div class="title-text">${title}</div>
     </div>
-    <img class="logo" src="${logoDataUri}" />
+    <img class="logo" src="${logo}" />
   </div>
 </body>
 </html>`;
@@ -161,39 +171,30 @@ async function getBrowser() {
   return browser;
 }
 
-// Root endpoint
 app.get('/', (req, res) => {
-  res.json({ service: 'guardian-image-generator-v2', status: 'running', version: '2.0.1' });
+  res.json({ service: 'guardian-image-generator-v2', status: 'running', version: '2.1.0' });
 });
 
-// Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'guardian-image-generator-v2' });
 });
 
-// Generate branded image
 app.post('/generate', async (req, res) => {
-  const { imageUrl, title } = req.body;
+  const { imageUrl, title, logoUrl } = req.body;
 
-  if (!imageUrl) {
-    return res.status(400).json({ error: 'imageUrl is required' });
-  }
-  if (!title) {
-    return res.status(400).json({ error: 'title is required' });
-  }
+  if (!imageUrl) return res.status(400).json({ error: 'imageUrl is required' });
+  if (!title) return res.status(400).json({ error: 'title is required' });
 
   const SIZE = 1080;
 
   try {
     const b = await getBrowser();
     const page = await b.newPage();
-
     await page.setViewport({ width: SIZE, height: SIZE, deviceScaleFactor: 1 });
 
-    const html = generateHTML(imageUrl, title);
+    const html = generateHTML(imageUrl, title, { logoUrl });
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 15000 });
 
-    // Wait for background image to load
     await page.evaluate(() => {
       return new Promise((resolve, reject) => {
         const img = document.querySelector('.bg-image');
@@ -204,7 +205,6 @@ app.post('/generate', async (req, res) => {
       });
     });
 
-    // Delay for font rendering + filters
     await new Promise(r => setTimeout(r, 800));
 
     const screenshot = await page.screenshot({
@@ -224,23 +224,19 @@ app.post('/generate', async (req, res) => {
   }
 });
 
-// Generate and return as base64
 app.post('/generate-base64', async (req, res) => {
-  const { imageUrl, title } = req.body;
+  const { imageUrl, title, logoUrl } = req.body;
 
-  if (!imageUrl || !title) {
-    return res.status(400).json({ error: 'imageUrl and title are required' });
-  }
+  if (!imageUrl || !title) return res.status(400).json({ error: 'imageUrl and title are required' });
 
   const SIZE = 1080;
 
   try {
     const b = await getBrowser();
     const page = await b.newPage();
-
     await page.setViewport({ width: SIZE, height: SIZE, deviceScaleFactor: 1 });
 
-    const html = generateHTML(imageUrl, title);
+    const html = generateHTML(imageUrl, title, { logoUrl });
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 15000 });
 
     await page.evaluate(() => {
@@ -276,13 +272,12 @@ app.post('/generate-base64', async (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Guardian Image Generator V2 running on port ${PORT}`);
+  console.log(`Guardian Image Generator V2.1.0 running on port ${PORT}`);
 }).on('error', (err) => {
   console.error('Server failed to start:', err);
   process.exit(1);
 });
 
-// Graceful shutdown
 process.on('SIGTERM', async () => {
   if (browser) await browser.close();
   process.exit(0);
