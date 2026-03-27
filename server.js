@@ -112,7 +112,7 @@ function generateHTML(imageUrl, title, options) {
 
   .logo {
     position: absolute;
-    bottom: 370px;
+    bottom: 30px;
     right: 30px;
     width: 190px;
     height: auto;
