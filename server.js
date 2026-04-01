@@ -48,13 +48,17 @@ if (!logos.guardian) {
 
 // Guardian: full duotone + banner + title + logo
 function generateHTMLGuardian(imageUrl, title, options) {
-  const SIZE = 1080;
+  const W = (options && options.width) || 1080;
+  const H = (options && options.height) || 1080;
   const logo = (options && options.logoUrl) || logos.guardian;
 
   let titleFontSize = 52;
   if (title.length > 80) titleFontSize = 38;
   else if (title.length > 60) titleFontSize = 42;
   else if (title.length > 40) titleFontSize = 46;
+
+  // Scale logo proportionally (190px at 1080)
+  const logoW = Math.round(190 * Math.min(W, H) / 1080);
 
   return `<!DOCTYPE html>
 <html>
@@ -65,8 +69,8 @@ function generateHTMLGuardian(imageUrl, title, options) {
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   .container {
-    width: ${SIZE}px;
-    height: ${SIZE}px;
+    width: ${W}px;
+    height: ${H}px;
     position: relative;
     overflow: hidden;
     background: #14151c;
@@ -126,7 +130,7 @@ function generateHTMLGuardian(imageUrl, title, options) {
     text-transform: uppercase;
     text-align: center;
     letter-spacing: 2px;
-    max-width: 900px;
+    max-width: ${Math.round(W * 0.83)}px;
     position: relative;
     z-index: 2;
   }
@@ -135,7 +139,7 @@ function generateHTMLGuardian(imageUrl, title, options) {
     position: absolute;
     bottom: 30px;
     right: 30px;
-    width: 190px;
+    width: ${logoW}px;
     height: auto;
   }
 </style>
@@ -168,8 +172,12 @@ function generateHTMLGuardian(imageUrl, title, options) {
 
 // Tojo: original image + logo overlay only (no filter, no title)
 function generateHTMLTojo(imageUrl, options) {
-  const SIZE = 1080;
+  const W = (options && options.width) || 1080;
+  const H = (options && options.height) || 1080;
   const logo = (options && options.logoUrl) || logos.tojo;
+
+  // Scale logo proportionally (115px at 1080)
+  const logoW = Math.round(115 * Math.min(W, H) / 1080);
 
   return `<!DOCTYPE html>
 <html>
@@ -179,8 +187,8 @@ function generateHTMLTojo(imageUrl, options) {
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   .container {
-    width: ${SIZE}px;
-    height: ${SIZE}px;
+    width: ${W}px;
+    height: ${H}px;
     position: relative;
     overflow: hidden;
     background: #000;
@@ -195,9 +203,9 @@ function generateHTMLTojo(imageUrl, options) {
 
   .logo {
     position: absolute;
-    top: 830px;
+    bottom: 30px;
     left: 30px;
-    width: 115px;
+    width: ${logoW}px;
     height: auto;
   }
 </style>
@@ -254,7 +262,7 @@ app.get('/', (req, res) => {
   res.json({
     service: 'image-generator',
     status: 'running',
-    version: '3.0.0',
+    version: '3.1.0',
     profiles: Object.keys(logos),
   });
 });
@@ -263,20 +271,59 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'image-generator', profiles: Object.keys(logos) });
 });
 
+// Probe image dimensions via Puppeteer
+async function probeImageSize(browser, imageUrl) {
+  const page = await browser.newPage();
+  try {
+    const dims = await page.evaluate((url) => {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+        img.onerror = () => reject(new Error('Failed to probe image'));
+        setTimeout(() => resolve(null), 8000);
+        img.src = url;
+      });
+    }, imageUrl);
+    await page.close();
+    return dims;
+  } catch (e) {
+    await page.close();
+    return null;
+  }
+}
+
+// Compute output dimensions: scale so max side = maxSize, preserve aspect ratio
+function computeOutputSize(naturalW, naturalH, maxSize) {
+  if (!naturalW || !naturalH) return { width: maxSize, height: maxSize };
+  const ratio = naturalW / naturalH;
+  if (naturalW >= naturalH) {
+    return { width: maxSize, height: Math.round(maxSize / ratio) };
+  } else {
+    return { width: Math.round(maxSize * ratio), height: maxSize };
+  }
+}
+
 app.post('/generate', async (req, res) => {
   const { imageUrl, title, logoUrl, profile } = req.body;
 
   if (!imageUrl) return res.status(400).json({ error: 'imageUrl is required' });
   if (!title && profile !== 'tojo') return res.status(400).json({ error: 'title is required (or use profile: "tojo")' });
 
-  const SIZE = 1080;
+  const MAX_SIZE = 1080;
 
   try {
     const b = await getBrowser();
-    const page = await b.newPage();
-    await page.setViewport({ width: SIZE, height: SIZE, deviceScaleFactor: 1 });
 
-    const html = generateHTML(imageUrl, title || '', { logoUrl, profile });
+    // Probe source image to preserve original aspect ratio
+    const dims = await probeImageSize(b, imageUrl);
+    const { width, height } = computeOutputSize(dims && dims.w, dims && dims.h, MAX_SIZE);
+    console.log(`Image probe: ${dims ? dims.w + 'x' + dims.h : 'failed'} → output ${width}x${height}`);
+
+    const page = await b.newPage();
+    await page.setViewport({ width, height, deviceScaleFactor: 1 });
+
+    const html = generateHTML(imageUrl, title || '', { logoUrl, profile, width, height });
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 15000 });
 
     await page.evaluate(() => {
@@ -293,7 +340,7 @@ app.post('/generate', async (req, res) => {
 
     const screenshot = await page.screenshot({
       type: 'png',
-      clip: { x: 0, y: 0, width: SIZE, height: SIZE }
+      clip: { x: 0, y: 0, width, height }
     });
 
     await page.close();
@@ -314,14 +361,20 @@ app.post('/generate-base64', async (req, res) => {
   if (!imageUrl) return res.status(400).json({ error: 'imageUrl is required' });
   if (!title && profile !== 'tojo') return res.status(400).json({ error: 'title is required (or use profile: "tojo")' });
 
-  const SIZE = 1080;
+  const MAX_SIZE = 1080;
 
   try {
     const b = await getBrowser();
-    const page = await b.newPage();
-    await page.setViewport({ width: SIZE, height: SIZE, deviceScaleFactor: 1 });
 
-    const html = generateHTML(imageUrl, title || '', { logoUrl, profile });
+    // Probe source image to preserve original aspect ratio
+    const dims = await probeImageSize(b, imageUrl);
+    const { width, height } = computeOutputSize(dims && dims.w, dims && dims.h, MAX_SIZE);
+    console.log(`Image probe (base64): ${dims ? dims.w + 'x' + dims.h : 'failed'} → output ${width}x${height}`);
+
+    const page = await b.newPage();
+    await page.setViewport({ width, height, deviceScaleFactor: 1 });
+
+    const html = generateHTML(imageUrl, title || '', { logoUrl, profile, width, height });
     await page.setContent(html, { waitUntil: 'networkidle0', timeout: 15000 });
 
     await page.evaluate(() => {
@@ -339,7 +392,7 @@ app.post('/generate-base64', async (req, res) => {
     const screenshot = await page.screenshot({
       type: 'png',
       encoding: 'base64',
-      clip: { x: 0, y: 0, width: SIZE, height: SIZE }
+      clip: { x: 0, y: 0, width, height }
     });
 
     await page.close();
@@ -348,6 +401,8 @@ app.post('/generate-base64', async (req, res) => {
       success: true,
       image: `data:image/png;base64,${screenshot}`,
       size: screenshot.length,
+      width,
+      height,
       profile: profile || 'guardian'
     });
 
@@ -358,7 +413,7 @@ app.post('/generate-base64', async (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Image Generator V3.0.0 running on port ${PORT}`);
+  console.log(`Image Generator V3.1.0 running on port ${PORT}`);
   console.log(`Profiles loaded: ${Object.keys(logos).join(', ')}`);
 }).on('error', (err) => {
   console.error('Server failed to start:', err);
