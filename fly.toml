@@ -5,10 +5,7 @@ app = "guardian-image-generator"
 primary_region = "iad"
 
 [build]
-  image = "guardian-image-generator:latest"
-
-[build.dockerfile]
-  cmd = "Dockerfile"
+  dockerfile = "Dockerfile"
 
 [env]
   PORT = "8080"
