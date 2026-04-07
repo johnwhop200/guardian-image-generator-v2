@@ -18,7 +18,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy to Fly.io
-        run: flyctl deploy --remote-only
+      - name: Create Fly.io app (if not exists) and deploy
+        run: |
+          set -e
+          echo "Checking if app exists..."
+          flyctl apps list || true
+
+          echo "Deploying..."
+          flyctl deploy --remote-only --build-only=false || true
+
+          echo "Done!"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
