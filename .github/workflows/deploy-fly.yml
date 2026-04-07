@@ -16,11 +16,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Fly CLI
-        run: curl -L https://fly.io/install.sh | sh
-        shell: bash
-
-      - name: Deploy to Fly.io
-        run: /home/runner/.fly/bin/flyctl deploy --remote-only
+      - name: Deploy with Fly.io
+        uses: superfly/actions/flyctl-actions@master
+        with:
+          args: "deploy --remote-only"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
