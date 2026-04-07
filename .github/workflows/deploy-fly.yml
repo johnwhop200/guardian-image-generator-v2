@@ -16,9 +16,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy with Fly.io
-        uses: superfly/actions/flyctl-actions@master
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          args: "deploy --remote-only"
+          node-version: '20'
+
+      - name: Install flyctl via npm
+        run: npm install -g flyctl
+
+      - name: Deploy to Fly.io
+        run: flyctl deploy --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
