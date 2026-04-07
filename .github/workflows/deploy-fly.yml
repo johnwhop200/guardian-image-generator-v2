@@ -16,13 +16,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install flyctl via npm
-        run: npm install -g flyctl
+      - name: Download and install flyctl
+        run: |
+          curl -L https://fly.io/install.sh | bash
+          echo "$HOME/.fly/bin" >> $GITHUB_PATH
 
       - name: Deploy to Fly.io
         run: flyctl deploy --remote-only
